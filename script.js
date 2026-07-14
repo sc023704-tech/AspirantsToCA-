@@ -33,46 +33,65 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function initAuthEngine() {
     const errorMsg = document.getElementById("auth-error");
+    if (!errorMsg) return;
 
-    document.getElementById("go-to-signup").addEventListener("click", () => {
-        document.getElementById("login-form-zone").style.display = "none";
-        document.getElementById("signup-form-zone").style.display = "block";
-        errorMsg.innerText = "";
-    });
+    const goSignup = document.getElementById("go-to-signup");
+    const goLogin = document.getElementById("go-to-login");
+    const btnSignup = document.getElementById("btn-signup");
+    const btnLogin = document.getElementById("btn-login");
+    const btnLogout = document.getElementById("btn-logout");
 
-    document.getElementById("go-to-login").addEventListener("click", () => {
-        document.getElementById("signup-form-zone").style.display = "none";
-        document.getElementById("login-form-zone").style.display = "block";
-        errorMsg.innerText = "";
-    });
+    if (goSignup) {
+        goSignup.onclick = () => {
+            document.getElementById("login-form-zone").style.display = "none";
+            document.getElementById("signup-form-zone").style.display = "block";
+            errorMsg.innerText = "";
+        };
+    }
 
-    document.getElementById("btn-signup").addEventListener("click", () => {
-        const u = document.getElementById("signup-username").value.trim().toLowerCase();
-        const p = document.getElementById("signup-password").value.trim();
-        if(!u || !p) { errorMsg.innerText = "All fields required."; return; }
-        
-        let users = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
-        if(users[u]) { errorMsg.innerText = "ID already taken."; return; }
+    if (goLogin) {
+        goLogin.onclick = () => {
+            document.getElementById("signup-form-zone").style.display = "none";
+            document.getElementById("login-form-zone").style.display = "block";
+            errorMsg.innerText = "";
+        };
+    }
 
-        users[u] = btoa(p);
-        localStorage.setItem("ca_users_db", JSON.stringify(users));
-        localStorage.setItem(`ca_state_v2_${u}`, JSON.stringify(createDefaultState()));
-        
-        errorMsg.style.color = "var(--accent-green)";
-        errorMsg.innerText = "Registered! Redirecting...";
-        setTimeout(() => { document.getElementById("go-to-login").click(); errorMsg.style.color="var(--danger)"; }, 1000);
-    });
+    if (btnSignup) {
+        btnSignup.onclick = () => {
+            const u = document.getElementById("signup-username").value.trim().toLowerCase();
+            const p = document.getElementById("signup-password").value.trim();
+            if(!u || !p) { errorMsg.innerText = "All fields required."; return; }
+            
+            let users = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
+            if(users[u]) { errorMsg.innerText = "ID already taken."; return; }
 
-    document.getElementById("btn-login").addEventListener("click", () => {
-        const u = document.getElementById("login-username").value.trim().toLowerCase();
-        const p = document.getElementById("login-password").value.trim();
+            users[u] = btoa(p);
+            localStorage.setItem("ca_users_db", JSON.stringify(users));
+            localStorage.setItem(`ca_state_v2_${u}`, JSON.stringify(createDefaultState()));
+            
+            errorMsg.style.color = "var(--accent-green)";
+            errorMsg.innerText = "Registered! Redirecting...";
+            setTimeout(() => { 
+                const loginLink = document.getElementById("go-to-login");
+                if (loginLink) loginLink.click(); 
+                errorMsg.style.color="var(--danger)"; 
+            }, 1000);
+        };
+    }
 
-        if(!u || !p) { errorMsg.innerText = "Credentials required."; return; }
+    if (btnLogin) {
+        btnLogin.onclick = () => {
+            const u = document.getElementById("login-username").value.trim().toLowerCase();
+            const p = document.getElementById("login-password").value.trim();
 
-        let users = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
-        if(!users[u] || users[u] !== btoa(p)) { errorMsg.innerText = "Invalid Credentials."; return; }
-        executeLogin(u);
-    });
+            if(!u || !p) { errorMsg.innerText = "Credentials required."; return; }
+
+            let users = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
+            if(!users[u] || users[u] !== btoa(p)) { errorMsg.innerText = "Invalid Credentials."; return; }
+            executeLogin(u);
+        };
+    }
 
     const session = localStorage.getItem("ca_active_user");
     if(session) {
@@ -81,10 +100,12 @@ function initAuthEngine() {
         else localStorage.removeItem("ca_active_user");
     }
 
-    document.getElementById("btn-logout").addEventListener("click", () => {
-        localStorage.removeItem("ca_active_user");
-        window.location.reload();
-    });
+    if (btnLogout) {
+        btnLogout.onclick = () => {
+            localStorage.removeItem("ca_active_user");
+            window.location.reload();
+        };
+    }
 }
 
 function executeLogin(username) {
@@ -148,7 +169,7 @@ function initCoreApp() {
     renderRoadmap();
     setupDiary();
     selectQuote();
-    setupInterSyncEngine(); // NEW: Cross Device Sync Architecture Called
+    setupInterSyncEngine();
 }
 
 function setupNavigation() {
@@ -173,92 +194,111 @@ function setupThemeSelector() {
     });
 }
 
-// NEW: Data Import & Export Cross Sync Logic Implementation
 function setupInterSyncEngine() {
-    document.getElementById("btn-export-data").onclick = () => {
-        const payload = {
-            version: "AspirantsToCA-V3",
-            username: currentUser,
-            secretHash: localStorage.getItem("ca_users_db") ? JSON.parse(localStorage.getItem("ca_users_db"))[currentUser] : "",
-            state: appState
-        };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `ATC_${currentUser}_SyncPack.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
+    const btnExport = document.getElementById("btn-export-data");
+    const btnTriggerImport = document.getElementById("btn-trigger-import");
     const fileInp = document.getElementById("import-file-input");
-    document.getElementById("btn-trigger-import").onclick = () => fileInp.click();
 
-    fileInp.onchange = (e) => {
-        const file = e.target.files[0];
-        if(!file) return;
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            try {
-                const imported = JSON.parse(evt.target.result);
-                if(imported.version !== "AspirantsToCA-V3" || !imported.state) {
-                    alert("Error: Invalid Sync Data Pack Format.");
-                    return;
-                }
-                
-                if(confirm("Are you sure you want to overwrite your active profile data with this pack?")) {
-                    if(imported.secretHash) {
-                        let localUsers = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
-                        localUsers[currentUser] = imported.secretHash;
-                        localStorage.setItem("ca_users_db", JSON.stringify(localUsers));
-                    }
-                    appState = imported.state;
-                    saveState();
-                    window.location.reload();
-                }
-            } catch(err) {
-                alert("Corrupted data file imported.");
-            }
+    if (btnExport) {
+        btnExport.onclick = () => {
+            const payload = {
+                version: "AspirantsToCA-V3",
+                username: currentUser,
+                secretHash: localStorage.getItem("ca_users_db") ? JSON.parse(localStorage.getItem("ca_users_db"))[currentUser] : "",
+                state: appState
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `ATC_${currentUser}_SyncPack.json`;
+            a.click();
+            URL.revokeObjectURL(url);
         };
-        reader.readAsText(file);
-    };
+    }
+
+    if (btnTriggerImport && fileInp) {
+        btnTriggerImport.onclick = () => fileInp.click();
+        fileInp.onchange = (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    if(imported.version !== "AspirantsToCA-V3" || !imported.state) {
+                        alert("Error: Invalid Sync Data Pack Format.");
+                        return;
+                    }
+                    
+                    if(confirm("Overwrite your active profile data?")) {
+                        if(imported.secretHash) {
+                            let localUsers = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
+                            localUsers[currentUser] = imported.secretHash;
+                            localStorage.setItem("ca_users_db", JSON.stringify(localUsers));
+                        }
+                        appState = imported.state;
+                        saveState();
+                        window.location.reload();
+                    }
+                } catch(err) {
+                    alert("Corrupted data file.");
+                }
+            };
+            reader.readAsText(file);
+        };
+    }
 }
 
 function setupConfigHandler() {
-    document.getElementById("config-target-date").value = appState.targetDate || "2026-09-01";
-    document.getElementById("config-challenge-days").value = appState.challengeDays || 50;
+    const targetInp = document.getElementById("config-target-date");
+    const daysInp = document.getElementById("config-challenge-days");
+    const saveBtn = document.getElementById("save-config-btn");
 
-    document.getElementById("save-config-btn").onclick = () => {
-        appState.targetDate = document.getElementById("config-target-date").value;
-        appState.challengeDays = parseInt(document.getElementById("config-challenge-days").value) || 50;
-        saveState();
-        renderRoadmap();
-        alert("Configuration saved successfully!");
-    };
+    if (targetInp) targetInp.value = appState.targetDate || "2026-09-01";
+    if (daysInp) daysInp.value = appState.challengeDays || 50;
+
+    if (saveBtn) {
+        saveBtn.onclick = () => {
+            appState.targetDate = targetInp.value;
+            appState.challengeDays = parseInt(daysInp.value) || 50;
+            saveState();
+            renderRoadmap();
+            alert("Configuration saved successfully!");
+        };
+    }
 }
 
 function startClocksAndCountdowns() {
     setInterval(() => {
+        const clockEl = document.getElementById("live-clock");
+        const dateEl = document.getElementById("current-date");
+        const countdownEl = document.getElementById("exam-countdown");
         const now = new Date();
-        document.getElementById("live-clock").innerText = now.toLocaleTimeString();
-        document.getElementById("current-date").innerText = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+        if (clockEl) clockEl.innerText = now.toLocaleTimeString();
+        if (dateEl) dateEl.innerText = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         
-        const target = appState.targetDate ? new Date(appState.targetDate + "T00:00:00") : new Date("2026-09-01T00:00:00");
-        const diff = target.getTime() - now.getTime();
-        if(diff > 0) {
-            document.getElementById("exam-countdown").innerText = `${Math.floor(diff / (1000 * 60 * 60 * 24))} Days Left`;
-        } else {
-            document.getElementById("exam-countdown").innerText = "Target Arrived!";
+        if (countdownEl) {
+            const target = appState.targetDate ? new Date(appState.targetDate + "T00:00:00") : new Date("2026-09-01T00:00:00");
+            const diff = target.getTime() - now.getTime();
+            if(diff > 0) {
+                countdownEl.innerText = `${Math.floor(diff / (1000 * 60 * 60 * 24))} Days Left`;
+            } else {
+                countdownEl.innerText = "Target Arrived!";
+            }
         }
     }, 1000);
 }
 
 function selectQuote() {
-    document.getElementById("motivational-quote").innerText = shivamQuotes[Math.floor(Math.random() * shivamQuotes.length)];
+    const quoteEl = document.getElementById("motivational-quote");
+    if (quoteEl) quoteEl.innerText = shivamQuotes[Math.floor(Math.random() * shivamQuotes.length)];
 }
 
 function renderRoutine() {
     const container = document.getElementById("routine-tasks-container");
+    if (!container) return;
     container.innerHTML = "";
     
     if(!appState.customRoutine) appState.customRoutine = [];
@@ -291,21 +331,25 @@ function renderRoutine() {
     });
 }
 
-document.getElementById("add-routine-block-btn").onclick = () => {
-    const time = document.getElementById("routine-time-input").value.trim();
-    const task = document.getElementById("routine-task-input").value.trim();
-    if(!time || !task) return;
+const addRoutineBtn = document.getElementById("add-routine-block-btn");
+if (addRoutineBtn) {
+    addRoutineBtn.onclick = () => {
+        const time = document.getElementById("routine-time-input").value.trim();
+        const task = document.getElementById("routine-task-input").value.trim();
+        if(!time || !task) return;
 
-    if(!appState.customRoutine) appState.customRoutine = [];
-    appState.customRoutine.push({ time, task });
-    document.getElementById("routine-time-input").value = "";
-    document.getElementById("routine-task-input").value = "";
-    saveState();
-    renderRoutine();
-};
+        if(!appState.customRoutine) appState.customRoutine = [];
+        appState.customRoutine.push({ time, task });
+        document.getElementById("routine-time-input").value = "";
+        document.getElementById("routine-task-input").value = "";
+        saveState();
+        renderRoutine();
+    };
+}
 
 function renderSyllabus() {
     const container = document.getElementById("subjects-container");
+    if (!container) return;
     container.innerHTML = "";
 
     if(!appState.subjects) appState.subjects = [];
@@ -326,7 +370,7 @@ function renderSyllabus() {
         });
 
         div.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div style="display:flex; justify-content:between; align-items:center; margin-bottom:10px;">
                 <h3>${sub.name}</h3>
                 <button class="btn btn-danger btn-sm del-sub-btn" style="padding:2px 6px; font-size:0.7rem;">Remove Subject</button>
             </div>
@@ -365,58 +409,81 @@ function renderSyllabus() {
     });
 }
 
-document.getElementById("create-subject-btn").onclick = () => {
-    const title = document.getElementById("new-subject-name").value.trim();
-    if(!title) return;
-    if(!appState.subjects) appState.subjects = [];
-    appState.subjects.push({ name: title, chapters: [] });
-    document.getElementById("new-subject-name").value = "";
-    saveState();
-    renderSyllabus();
-};
+const createSubjectBtn = document.getElementById("create-subject-btn");
+if (createSubjectBtn) {
+    createSubjectBtn.onclick = () => {
+        const title = document.getElementById("new-subject-name").value.trim();
+        if(!title) return;
+        if(!appState.subjects) appState.subjects = [];
+        appState.subjects.push({ name: title, chapters: [] });
+        document.getElementById("new-subject-name").value = "";
+        saveState();
+        renderSyllabus();
+    };
+}
 
 let pomoInterval = null, pomoTimeLeft = 50 * 60;
 function setupPomodoro() {
     const display = document.getElementById("timer-display");
-    document.getElementById("pomo-start").onclick = () => {
-        if (pomoInterval) return;
-        pomoInterval = setInterval(() => {
-            if (pomoTimeLeft > 0) { pomoTimeLeft--; display.innerText = `${Math.floor(pomoTimeLeft/60).toString().padStart(2,'0')}:${(pomoTimeLeft%60).toString().padStart(2,'0')}`; }
-            else { clearInterval(pomoInterval); pomoInterval = null; alert("Session Finished!"); }
-        }, 1000);
-    };
-    document.getElementById("pomo-pause").onclick = () => { clearInterval(pomoInterval); pomoInterval = null; };
-    document.getElementById("pomo-reset").onclick = () => { clearInterval(pomoInterval); pomoInterval = null; pomoTimeLeft = 50*60; display.innerText = "50:00"; };
+    const pStart = document.getElementById("pomo-start");
+    const pPause = document.getElementById("pomo-pause");
+    const pReset = document.getElementById("pomo-reset");
+
+    if (pStart) {
+        pStart.onclick = () => {
+            if (pInterval) return;
+            pomoInterval = setInterval(() => {
+                if (pomoTimeLeft > 0) { 
+                    pomoTimeLeft--; 
+                    if (display) display.innerText = `${Math.floor(pomoTimeLeft/60).toString().padStart(2,'0')}:${(pomoTimeLeft%60).toString().padStart(2,'0')}`; 
+                }
+                else { clearInterval(pomoInterval); pomoInterval = null; alert("Session Finished!"); }
+            }, 1000);
+        };
+    }
+    if (pPause) { pPause.onclick = () => { clearInterval(pomoInterval); pomoInterval = null; }; }
+    if (pReset) { pReset.onclick = () => { clearInterval(pomoInterval); pomoInterval = null; pomoTimeLeft = 50*60; if (display) display.innerText = "50:00"; }; }
 }
 
 let swInterval = null, swSeconds = 0;
 function setupStopwatchAndTodo() {
     const swDisplay = document.getElementById("stopwatch-display");
-    document.getElementById("sw-start").onclick = () => {
-        if(swInterval) return;
-        swInterval = setInterval(() => {
-            swSeconds++;
-            const h = Math.floor(swSeconds/3600).toString().padStart(2,'0');
-            const m = Math.floor((swSeconds%3600)/60).toString().padStart(2,'0');
-            const s = (swSeconds%60).toString().padStart(2,'0');
-            swDisplay.innerText = `${h}:${m}:${s}`;
-        }, 1000);
-    };
-    document.getElementById("sw-pause").onclick = () => { clearInterval(swInterval); swInterval = null; };
-    document.getElementById("sw-log").onclick = () => {
-        clearInterval(swInterval); swInterval = null;
-        const h = swSeconds / 3600;
-        if(h > 0) { 
-            appState.hoursLogged.today += h; 
-            appState.hoursLogged.total += h; 
-            appState.xp += Math.round(h * 20); 
-            saveState(); 
-        }
-        swSeconds = 0; swDisplay.innerText = "00:00:00";
-    };
+    const swStart = document.getElementById("sw-start");
+    const swPause = document.getElementById("sw-pause");
+    const swLog = document.getElementById("sw-log");
+
+    if (swStart) {
+        swStart.onclick = () => {
+            if(swInterval) return;
+            swInterval = setInterval(() => {
+                swSeconds++;
+                if (swDisplay) {
+                    const h = Math.floor(swSeconds/3600).toString().padStart(2,'0');
+                    const m = Math.floor((swSeconds%3600)/60).toString().padStart(2,'0');
+                    const s = (swSeconds%60).toString().padStart(2,'0');
+                    swDisplay.innerText = `${h}:${m}:${s}`;
+                }
+            }, 1000);
+        };
+    }
+    if (swPause) { swPause.onclick = () => { clearInterval(swInterval); swInterval = null; }; }
+    if (swLog) {
+        swLog.onclick = () => {
+            clearInterval(swInterval); swInterval = null;
+            const h = swSeconds / 3600;
+            if(h > 0) { 
+                appState.hoursLogged.today += h; 
+                appState.hoursLogged.total += h; 
+                appState.xp += Math.round(h * 20); 
+                saveState(); 
+            }
+            swSeconds = 0; if (swDisplay) swDisplay.innerText = "00:00:00";
+        };
+    }
 
     const todoInput = document.getElementById("todo-input"), list = document.getElementById("todo-list-items");
     function renderTodos() {
+        if (!list) return;
         list.innerHTML = "";
         if(!appState.todo) appState.todo = [];
         appState.todo.forEach((item, idx) => {
@@ -426,57 +493,18 @@ function setupStopwatchAndTodo() {
             list.appendChild(li);
         });
     }
-    document.getElementById("add-todo-btn").onclick = () => {
-        if(!todoInput.value.trim()) return;
-        if(!appState.todo) appState.todo = [];
-        appState.todo.push({ text: todoInput.value.trim(), priority: document.getElementById("todo-priority").value });
-        todoInput.value = ""; saveState(); renderTodos();
-    };
+    const addTodoBtn = document.getElementById("add-todo-btn");
+    if (addTodoBtn) {
+        addTodoBtn.onclick = () => {
+            if(!todoInput.value.trim()) return;
+            if(!appState.todo) appState.todo = [];
+            appState.todo.push({ text: todoInput.value.trim(), priority: document.getElementById("todo-priority").value });
+            todoInput.value = ""; saveState(); renderTodos();
+        };
+    }
     renderTodos();
 }
 
 function renderRoadmap() {
-    const container = document.getElementById("roadmap-grid-container"); container.innerHTML = "";
-    let completed = 0;
-    const totalDays = appState.challengeDays || 50;
-
-    if(!appState.roadmapChecked) appState.roadmapChecked = {};
-
-    for (let i = 0; i < totalDays; i++) {
-        const block = document.createElement("div"), done = appState.roadmapChecked[i] || false;
-        if (done) completed++;
-        block.className = `day-block ${done ? 'checked' : ''}`; block.innerText = i + 1;
-        block.onclick = () => {
-            appState.roadmapChecked[i] = !appState.roadmapChecked[i];
-            appState.xp += appState.roadmapChecked[i] ? 40 : -40;
-            saveState();
-            renderRoadmap();
-        };
-        container.appendChild(block);
-    }
-    document.getElementById("roadmap-stats").innerText = `${completed}/${totalDays} Days`;
-}
-
-function setupDiary() {
-    const input = document.getElementById("diary-input"), container = document.getElementById("diary-notes-container");
-    function renderNotes() {
-        container.innerHTML = "";
-        if(!appState.diary) appState.diary = [];
-        appState.diary.forEach((note, idx) => {
-            const div = document.createElement("div"); div.className = "glass card-padding"; div.style.fontSize="0.85rem";
-            div.innerHTML = `<p>${note}</p><button class="btn btn-danger btn-sm" style="padding:2px 6px; font-size:0.7rem; margin-top:4px;">Delete</button>`;
-            div.querySelector("button").onclick = () => { appState.diary.splice(idx, 1); saveState(); renderNotes(); };
-            container.appendChild(div);
-        });
-    }
-    document.getElementById("save-diary-btn").onclick = () => {
-        if(!input.value.trim()) return;
-        if(!appState.diary) appState.diary = [];
-        appState.diary.push(input.value.trim()); input.value = ""; saveState(); renderNotes();
-    };
-    renderNotes();
-}
-
-function calculateTelemetry() {
-    // 1. Routine Calculations
-    if(!appState.customRout
+    const container = document.getElementById("roadmap-grid-container"); 
+    if (!container) return;
