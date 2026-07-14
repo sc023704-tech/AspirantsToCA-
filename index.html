@@ -68,6 +68,24 @@
                     </div>
                 </div>
 
+                <div class="glass card-padding margin-bottom">
+                    <h3>📊 Live Sync Performance Matrix</h3>
+                    <div class="progress-matrix-grid margin-top">
+                        <div class="matrix-item">
+                            <span>📅 Routine Done</span>
+                            <strong id="dash-routine-pct">0%</strong>
+                        </div>
+                        <div class="matrix-item">
+                            <span>📚 Syllabus Complete</span>
+                            <strong id="dash-syllabus-pct">0%</strong>
+                        </div>
+                        <div class="matrix-item">
+                            <span>🏁 Roadmap Track</span>
+                            <strong id="dash-roadmap-pct">0%</strong>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="grid-2x2">
                     <div class="stat-card glass text-center">
                         <h4 style="color:var(--text-muted);">Target Countdown</h4>
@@ -109,6 +127,7 @@
             <section id="subjects" class="app-section">
                 <div class="section-header flex-row" style="justify-content:space-between;">
                     <h2>📚 Dynamic Syllabus Matrix</h2>
+                    <span id="syllabus-global-progress" class="badge-percent">0%</span>
                 </div>
 
                 <div class="glass card-padding margin-bottom margin-top">
@@ -175,7 +194,18 @@
                         <button class="theme-btn btn" data-set-theme="dark-blue" style="background:#0f172a; color:#3b82f6; border:1px solid #3b82f6;">Electric Blue</button>
                         <button class="theme-btn btn" data-set-theme="oled-black" style="background:#000000; color:#ffffff; border:1px solid #ffffff;">Midnight OLED</button>
                         <button class="theme-btn btn" data-set-theme="glass-green" style="background:#022c22; color:#10b981; border:1px solid #10b981;">Emerald Glass</button>
+                        <button class="theme-btn btn" data-set-theme="monochrome" style="background:#ffffff; color:#000000; border:1px solid #000000;">Monochrome Premium</button>
                     </div>
+                </div>
+
+                <div class="glass card-padding margin-bottom">
+                    <h3>🔄 Laptop-Mobile Inter-Sync Engine</h3>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">Backup your profile data to sync seamlessly between mobile and laptop devices.</p>
+                    <div class="flex-row">
+                        <button id="btn-export-data" class="btn btn-primary w-100">📤 Export Profile Pack</button>
+                        <button id="btn-trigger-import" class="btn btn-success w-100">📥 Import Profile Pack</button>
+                    </div>
+                    <input type="file" id="import-file-input" style="display:none;" accept=".json">
                 </div>
 
                 <div class="glass card-padding margin-bottom">
@@ -208,6 +238,15 @@
                     <div id="diary-notes-container" class="margin-top" style="max-height:120px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
                 </div>
 
+                <div class="glass card-padding margin-bottom credit-box-zone">
+                    <h4>🛠️ Core Infrastructure Specifications</h4>
+                    <p style="font-size:0.85rem; margin-top:4px;">Architect & Owner: <strong>Shivam Choudhary</strong></p>
+                    <div class="flex-row margin-top" style="gap:10px;">
+                        <a href="https://instagram.com/aspiranttoca" target="_blank" class="credit-link">📸 Instagram (@aspiranttoca)</a>
+                        <a href="mailto:feedback@aspiranttoca.com?subject=Ecosystem%20Feedback" class="credit-link">📧 System Feedback</a>
+                    </div>
+                </div>
+
                 <div class="glass card-padding">
                     <button id="reset-btn" class="btn btn-danger w-100">🚨 Wipe Account Storage Profile</button>
                 </div>
@@ -232,4 +271,5 @@
 
     <script src="script.js"></script>
 </body>
-</html>
+                            </html>
+    
