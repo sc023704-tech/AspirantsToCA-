@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ca-elite-v6';
+const CACHE_NAME = 'ca-elite-v8';
 const ASSETS = ['index.html', 'style.css', 'script.js', 'manifest.json'];
 
 self.addEventListener('install', (e) => {
