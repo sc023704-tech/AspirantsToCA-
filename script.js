@@ -37,11 +37,13 @@ function initAuthEngine() {
     document.getElementById("go-to-signup").addEventListener("click", () => {
         document.getElementById("login-form-zone").style.display = "none";
         document.getElementById("signup-form-zone").style.display = "block";
+        errorMsg.innerText = "";
     });
 
     document.getElementById("go-to-login").addEventListener("click", () => {
         document.getElementById("signup-form-zone").style.display = "none";
         document.getElementById("login-form-zone").style.display = "block";
+        errorMsg.innerText = "";
     });
 
     document.getElementById("btn-signup").addEventListener("click", () => {
@@ -65,13 +67,19 @@ function initAuthEngine() {
         const u = document.getElementById("login-username").value.trim().toLowerCase();
         const p = document.getElementById("login-password").value.trim();
 
+        if(!u || !p) { errorMsg.innerText = "Credentials required."; return; }
+
         let users = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
         if(!users[u] || users[u] !== btoa(p)) { errorMsg.innerText = "Invalid Credentials."; return; }
         executeLogin(u);
     });
 
     const session = localStorage.getItem("ca_active_user");
-    if(session) executeLogin(session);
+    if(session) {
+        let users = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
+        if(users[session]) executeLogin(session);
+        else localStorage.removeItem("ca_active_user");
+    }
 
     document.getElementById("btn-logout").addEventListener("click", () => {
         localStorage.removeItem("ca_active_user");
@@ -106,9 +114,14 @@ function createDefaultState() {
 }
 
 function loadState() {
-    appState = JSON.parse(localStorage.getItem(`ca_state_v2_${currentUser}`)) || createDefaultState();
+    try {
+        appState = JSON.parse(localStorage.getItem(`ca_state_v2_${currentUser}`)) || createDefaultState();
+    } catch(e) {
+        appState = createDefaultState();
+    }
     const today = new Date().toDateString();
-    if (appState.hoursLogged.lastUpdated !== today) {
+    if (!appState.hoursLogged || appState.hoursLogged.lastUpdated !== today) {
+        appState.hoursLogged = appState.hoursLogged || { today: 0, total: 0 };
         appState.hoursLogged.today = 0;
         appState.hoursLogged.lastUpdated = today;
         appState.routineChecked = {};
@@ -135,6 +148,7 @@ function initCoreApp() {
     renderRoadmap();
     setupDiary();
     selectQuote();
+    setupInterSyncEngine(); // NEW: Cross Device Sync Architecture Called
 }
 
 function setupNavigation() {
@@ -159,9 +173,60 @@ function setupThemeSelector() {
     });
 }
 
+// NEW: Data Import & Export Cross Sync Logic Implementation
+function setupInterSyncEngine() {
+    document.getElementById("btn-export-data").onclick = () => {
+        const payload = {
+            version: "AspirantsToCA-V3",
+            username: currentUser,
+            secretHash: localStorage.getItem("ca_users_db") ? JSON.parse(localStorage.getItem("ca_users_db"))[currentUser] : "",
+            state: appState
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `ATC_${currentUser}_SyncPack.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const fileInp = document.getElementById("import-file-input");
+    document.getElementById("btn-trigger-import").onclick = () => fileInp.click();
+
+    fileInp.onchange = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const imported = JSON.parse(evt.target.result);
+                if(imported.version !== "AspirantsToCA-V3" || !imported.state) {
+                    alert("Error: Invalid Sync Data Pack Format.");
+                    return;
+                }
+                
+                if(confirm("Are you sure you want to overwrite your active profile data with this pack?")) {
+                    if(imported.secretHash) {
+                        let localUsers = JSON.parse(localStorage.getItem("ca_users_db") || "{}");
+                        localUsers[currentUser] = imported.secretHash;
+                        localStorage.setItem("ca_users_db", JSON.stringify(localUsers));
+                    }
+                    appState = imported.state;
+                    saveState();
+                    window.location.reload();
+                }
+            } catch(err) {
+                alert("Corrupted data file imported.");
+            }
+        };
+        reader.readAsText(file);
+    };
+}
+
 function setupConfigHandler() {
-    document.getElementById("config-target-date").value = appState.targetDate;
-    document.getElementById("config-challenge-days").value = appState.challengeDays;
+    document.getElementById("config-target-date").value = appState.targetDate || "2026-09-01";
+    document.getElementById("config-challenge-days").value = appState.challengeDays || 50;
 
     document.getElementById("save-config-btn").onclick = () => {
         appState.targetDate = document.getElementById("config-target-date").value;
@@ -178,7 +243,8 @@ function startClocksAndCountdowns() {
         document.getElementById("live-clock").innerText = now.toLocaleTimeString();
         document.getElementById("current-date").innerText = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         
-        const diff = new Date(appState.targetDate + "T00:00:00").getTime() - now.getTime();
+        const target = appState.targetDate ? new Date(appState.targetDate + "T00:00:00") : new Date("2026-09-01T00:00:00");
+        const diff = target.getTime() - now.getTime();
         if(diff > 0) {
             document.getElementById("exam-countdown").innerText = `${Math.floor(diff / (1000 * 60 * 60 * 24))} Days Left`;
         } else {
@@ -191,11 +257,11 @@ function selectQuote() {
     document.getElementById("motivational-quote").innerText = shivamQuotes[Math.floor(Math.random() * shivamQuotes.length)];
 }
 
-// ROUTINE OPERATION ENGINE (ADD / DELETE / CHECK)
 function renderRoutine() {
     const container = document.getElementById("routine-tasks-container");
     container.innerHTML = "";
     
+    if(!appState.customRoutine) appState.customRoutine = [];
     appState.customRoutine.forEach((item, idx) => {
         const checked = appState.routineChecked[idx] || false;
         const div = document.createElement("div");
@@ -230,6 +296,7 @@ document.getElementById("add-routine-block-btn").onclick = () => {
     const task = document.getElementById("routine-task-input").value.trim();
     if(!time || !task) return;
 
+    if(!appState.customRoutine) appState.customRoutine = [];
     appState.customRoutine.push({ time, task });
     document.getElementById("routine-time-input").value = "";
     document.getElementById("routine-task-input").value = "";
@@ -237,11 +304,11 @@ document.getElementById("add-routine-block-btn").onclick = () => {
     renderRoutine();
 };
 
-// DYNAMIC SYLLABUS OPERATIONS CORE (SUBJECTS & CHAPTERS CRUD)
 function renderSyllabus() {
     const container = document.getElementById("subjects-container");
     container.innerHTML = "";
 
+    if(!appState.subjects) appState.subjects = [];
     appState.subjects.forEach((sub, sIdx) => {
         const div = document.createElement("div");
         div.className = "subject-block-card glass card-padding";
@@ -259,7 +326,7 @@ function renderSyllabus() {
         });
 
         div.innerHTML = `
-            <div style="display:flex; justify-content:between; align-items:center; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <h3>${sub.name}</h3>
                 <button class="btn btn-danger btn-sm del-sub-btn" style="padding:2px 6px; font-size:0.7rem;">Remove Subject</button>
             </div>
@@ -301,13 +368,13 @@ function renderSyllabus() {
 document.getElementById("create-subject-btn").onclick = () => {
     const title = document.getElementById("new-subject-name").value.trim();
     if(!title) return;
+    if(!appState.subjects) appState.subjects = [];
     appState.subjects.push({ name: title, chapters: [] });
     document.getElementById("new-subject-name").value = "";
     saveState();
     renderSyllabus();
 };
 
-// POMODORO MODULE
 let pomoInterval = null, pomoTimeLeft = 50 * 60;
 function setupPomodoro() {
     const display = document.getElementById("timer-display");
@@ -322,7 +389,6 @@ function setupPomodoro() {
     document.getElementById("pomo-reset").onclick = () => { clearInterval(pomoInterval); pomoInterval = null; pomoTimeLeft = 50*60; display.innerText = "50:00"; };
 }
 
-// STOPWATCH & PLANNERS
 let swInterval = null, swSeconds = 0;
 function setupStopwatchAndTodo() {
     const swDisplay = document.getElementById("stopwatch-display");
@@ -340,13 +406,19 @@ function setupStopwatchAndTodo() {
     document.getElementById("sw-log").onclick = () => {
         clearInterval(swInterval); swInterval = null;
         const h = swSeconds / 3600;
-        if(h > 0) { appState.hoursLogged.today += h; appState.hoursLogged.total += h; appState.xp += Math.round(h * 20); saveState(); }
+        if(h > 0) { 
+            appState.hoursLogged.today += h; 
+            appState.hoursLogged.total += h; 
+            appState.xp += Math.round(h * 20); 
+            saveState(); 
+        }
         swSeconds = 0; swDisplay.innerText = "00:00:00";
     };
 
     const todoInput = document.getElementById("todo-input"), list = document.getElementById("todo-list-items");
     function renderTodos() {
         list.innerHTML = "";
+        if(!appState.todo) appState.todo = [];
         appState.todo.forEach((item, idx) => {
             const li = document.createElement("li"); li.className = "todo-item";
             li.innerHTML = `<span>[${item.priority}] ${item.text}</span><button class="btn btn-danger" style="padding:2px 6px; font-size:0.75rem;">X</button>`;
@@ -356,6 +428,7 @@ function setupStopwatchAndTodo() {
     }
     document.getElementById("add-todo-btn").onclick = () => {
         if(!todoInput.value.trim()) return;
+        if(!appState.todo) appState.todo = [];
         appState.todo.push({ text: todoInput.value.trim(), priority: document.getElementById("todo-priority").value });
         todoInput.value = ""; saveState(); renderTodos();
     };
@@ -366,6 +439,8 @@ function renderRoadmap() {
     const container = document.getElementById("roadmap-grid-container"); container.innerHTML = "";
     let completed = 0;
     const totalDays = appState.challengeDays || 50;
+
+    if(!appState.roadmapChecked) appState.roadmapChecked = {};
 
     for (let i = 0; i < totalDays; i++) {
         const block = document.createElement("div"), done = appState.roadmapChecked[i] || false;
@@ -386,7 +461,8 @@ function setupDiary() {
     const input = document.getElementById("diary-input"), container = document.getElementById("diary-notes-container");
     function renderNotes() {
         container.innerHTML = "";
-        (appState.diary || []).forEach((note, idx) => {
+        if(!appState.diary) appState.diary = [];
+        appState.diary.forEach((note, idx) => {
             const div = document.createElement("div"); div.className = "glass card-padding"; div.style.fontSize="0.85rem";
             div.innerHTML = `<p>${note}</p><button class="btn btn-danger btn-sm" style="padding:2px 6px; font-size:0.7rem; margin-top:4px;">Delete</button>`;
             div.querySelector("button").onclick = () => { appState.diary.splice(idx, 1); saveState(); renderNotes(); };
@@ -402,25 +478,5 @@ function setupDiary() {
 }
 
 function calculateTelemetry() {
-    const rKeys = appState.customRoutine.length, rDone = Object.keys(appState.routineChecked).filter(k => appState.routineChecked[k] === true).length;
-    const rPct = rKeys ? Math.round((rDone / rKeys) * 100) : 0;
-    document.getElementById("routine-progress").innerText = `${rPct}%`;
-
-    const daysDone = Object.keys(appState.roadmapChecked).filter(k => appState.roadmapChecked[k] === true).length;
-    const roadPct = appState.challengeDays ? Math.round((daysDone / appState.challengeDays) * 100) : 0;
-
-    document.getElementById("chart-routine").style.width = `${rPct}%`;
-    document.getElementById("chart-roadmap").style.width = `${roadPct}%`;
-
-    document.getElementById("hours-today").innerText = appState.hoursLogged.today.toFixed(1);
-    document.getElementById("hours-total-metric").innerText = appState.hoursLogged.total.toFixed(1);
-
-    const lvl = Math.max(1, Math.floor(appState.xp / 100) + 1);
-    document.getElementById("rpg-level-title").innerText = `Level ${lvl} Tracker Rank`;
-    document.getElementById("rpg-xp-fill").style.width = `${Math.max(0, appState.xp % 100)}%`;
-    document.getElementById("current-streak").innerText = Math.max(0, Math.floor(appState.hoursLogged.total / 4));
-}
-
-document.getElementById("reset-btn").onclick = () => {
-    if(confirm("Reset all storage elements?")) { localStorage.removeItem(`ca_state_v2_${currentUser}`); window.location.reload(); }
-};
+    // 1. Routine Calculations
+    if(!appState.customRout
